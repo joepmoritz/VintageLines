@@ -17,22 +17,40 @@ class VintageLinesEventListener(sublime_plugin.EventListener):
 
 		view.settings().set('line_numbers', False)
 
-		cur_line = view.rowcol(view.sel()[0].begin())[0]
-		start_line = max(cur_line-self.icon_count, 0)
-		end_line = min(cur_line+self.icon_count, self.view.rowcol(self.view.size())[0])
+		current_start = view.rowcol(view.sel()[0].begin())
+		current_line_start = current_start[0]
+		current_end = view.rowcol(view.sel()[0].end())
+		current_line_end = current_end[0]
+		start_line = max(current_line_start-self.icon_count, 0)
+		end_line = min(current_line_end+self.icon_count, self.view.rowcol(self.view.size())[0])
 
-		lines = self.view.lines(sublime.Region(self.view.text_point(start_line, 0), self.view.text_point(end_line + 1, 0)))
 
-		# Append the last line's region manually (if necessary)
-		if (len(lines) < end_line - start_line + 1):
-			last_text_point = lines[-1].end() + 1
-			lines.append(sublime.Region(last_text_point, last_text_point))
+		line_height = self.view.line_height()
+		layout_position_start = self.view.text_to_layout(self.view.text_point(current_start[0], current_start[1]))[1]
+		region_number = 1
+		for i in range(start_line, current_line_start):
+			name = 'linenum' + str(region_number)
+			region_number = region_number + 1
 
-		for i in range(start_line, start_line + len(lines)):
-			name = 'linenum' + str(i-start_line)
-			icon = str(int(math.fabs(cur_line - i)))
+			text_point = self.view.text_point(i, 0)
+			layout_position = self.view.text_to_layout(text_point)[1]
+			icon = str(int(math.fabs((layout_position - layout_position_start) / line_height)))
 
-			view.add_regions(name, [lines[i-start_line]], 'linenums', self.icon_path % (sublime.platform(), icon), sublime.HIDDEN)
+			line_region = sublime.Region(self.view.text_point(i, 0), self.view.text_point(i, 0))
+			view.add_regions(name, [line_region], 'linenums', self.icon_path % (sublime.platform(), icon), sublime.HIDDEN)
+
+		layered_position_end = self.view.text_to_layout(self.view.text_point(current_end[0], current_end[1]))[1]
+		for i in range(current_line_end, end_line + 1):
+			name = 'linenum' + str(region_number)
+			region_number = region_number + 1
+
+			text_point = self.view.text_point(i, 0)
+			layout_position = self.view.text_to_layout(text_point)[1]
+			icon = str(int(math.fabs((layout_position - layered_position_end) / line_height)))
+
+			line_region = sublime.Region(self.view.text_point(i, 0), self.view.text_point(i, 0))
+			view.add_regions(name, [line_region], 'linenums', self.icon_path % (sublime.platform(), icon), sublime.HIDDEN)
+
 
 	def removeRelativeNumbers(self):
 		self.view.settings().set('line_numbers', True)
@@ -65,12 +83,19 @@ class VintageLinesEventListener(sublime_plugin.EventListener):
 				show = False
 
 			mode = settings.get('vintage_lines.mode', False)
-			line = settings.get('vintage_lines.line', -1)
+			line_start = settings.get('vintage_lines.line_start', -1)
+			line_end = settings.get('vintage_lines.line_end', -1)
 			lines = settings.get('vintage_lines.lines', -1)
 
 			update = mode != show
-			update = update or line != self.view.rowcol(self.view.sel()[0].begin())[0]
+			update = update or line_start != self.view.rowcol(self.view.sel()[0].begin())
+			update = update or line_end != self.view.rowcol(self.view.sel()[0].end())
 			update = update or lines != self.view.rowcol(self.view.size())[0]
+
+			# print("update: %d" % update)
+			# print("show: %d" % show)
+
+
 			if update:
 				if show:
 					self.removeRelativeNumbers()
@@ -78,7 +103,8 @@ class VintageLinesEventListener(sublime_plugin.EventListener):
 				else:
 					self.removeRelativeNumbers()
 
-				self.view.settings().set('vintage_lines.line', self.view.rowcol(self.view.sel()[0].begin())[0])
+				self.view.settings().set('vintage_lines.line_start', self.view.rowcol(self.view.sel()[0].begin()))
+				self.view.settings().set('vintage_lines.line_end', self.view.rowcol(self.view.sel()[0].end()))
 				self.view.settings().set('vintage_lines.mode', show)
 				self.view.settings().set('vintage_lines.lines', self.view.rowcol(self.view.size())[0])
 
@@ -88,7 +114,8 @@ class VintageLinesEventListener(sublime_plugin.EventListener):
 		self.view = view
 		if view:
 			view.settings().clear_on_change("VintageLines")
-			view.settings().set('vintage_lines.line', -1) # Just to force an update on activation
+			view.settings().set('vintage_lines.line_start', -1) # Just to force an update on activation
+			view.settings().set('vintage_lines.line_end', -1) # Just to force an update on activation
 			view.settings().add_on_change("VintageLines", self.checkSettings)
 		self.checkSettings()
 
