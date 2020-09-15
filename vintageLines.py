@@ -60,6 +60,12 @@ class VintageLinesEventListener(sublime_plugin.EventListener):
 				self.view.erase_regions('linenum' + str(i))
 
 	def checkSettings(self):
+		if not self.view:
+			return
+
+		if self.view.settings().has("terminus_view"):
+			return
+
 		cur_line = self.view.rowcol(self.view.sel()[0].begin())[0]
 
 		if cur_line == None:
